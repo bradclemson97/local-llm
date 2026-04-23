@@ -2,8 +2,6 @@
 
 A secure, air-gapped-ready intelligence workstation optimized for Apple Silicon (M4). This project enables local analysis of sensitive mission documents using Large Language Models (LLMs) and Retrieval-Augmented Generation (RAG) with 100% data sovereignty.
 
----
-
 ## Key Features
 
 - **Local Inference**: Uses [Ollama](https://ollama.com/) to run models like `Gemma 4 26B` or `Qwen 3.6 35B` locally on your M4 GPU.
@@ -36,18 +34,27 @@ pipx install pypdf
 pipx install chromadb
 ```
 
-Install models 
+Install models:
 ```
 ollama pull gemma4:26b
 ollama pull nomic-embed-text
 ```
 
-Install Dependencies (dedicated environment)
+Install Dependencies (dedicated local environment):
 ```
 cd ~/VSProjects/local-llm
+```
+Set up virtual envrionment:
+```
+python3 -m venv .venv
 source .venv/bin/activate
+```
+Install dependencies:
+```
+pip install ollama
 pip install chainlit
 pip install pypdf
+pip install chromadb
 ```
 ---
 
@@ -58,7 +65,14 @@ Run this to force-stop any hidden Ollama processes:
 ```
 killall Ollama
 ```
-Note: If it says "No matching processes were found," it might be running under a different service name. Run lsof -i :11434 to see the exact Process ID (PID) using the port, then run kill -9 <PID>.
+Note: If it says "No matching processes were found," it might be running under a different service name. Run 
+```
+lsof -i :11434 
+```
+to see the exact Process ID (PID) using the port, then run 
+```
+kill -9 <PID>
+```
 
 2. The "Secure Start" Sequence
 Now that the port is clear, start your dedicated, isolated server:
