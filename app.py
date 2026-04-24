@@ -15,11 +15,16 @@ chroma_client = chromadb.PersistentClient(path="./mission_db")
 collection = chroma_client.get_or_create_collection(name="mission_archive")
 
 client = AsyncClient(host="http://127.0.0.1:11434")
-# RECOMMENDATION: If 26b is still slow, try "gemma4:9b" to verify the pipeline first
+
+# TEXT_MODEL: Deep reasoning and RAG
+# If 26b is still slow, try "gemma4:9b" to verify the pipeline first
 MODEL = "gemma4:26b"
+TEXT_MODEL = "gemma4:26b" 
+# VISION_MODEL: Optimized for tactical image analysis
+VISION_MODEL = "moondream" 
 
 def secure_shred(file_path):
-    """3-pass overwrite of the file before deletion."""
+    """3-pass overwrite of the file before deletion (macOS native)."""
     try:
         subprocess.run(["rm", "-P", file_path], check=True)
         return True
@@ -27,19 +32,19 @@ def secure_shred(file_path):
 
 @cl.on_chat_start
 async def start():
-    # Updated welcome message to reflect RAG and Citation capability
-    await cl.Message(content="🛡️ **Defense Node Active.** Documents are indexed with source tracking. Type a question to search the archive.").send()
+    # Updated welcome message to reflect RAG, Citations, and Vision capability
+    await cl.Message(content="🛡️ **Defense Node: Vision Enabled.** Upload PDFs for indexing or Images for tactical visual analysis. Sources are tracked for all queries.").send()
 
 @cl.on_message
 async def main(message: cl.Message):
-    # --- PHASE 1: DOCUMENT INGESTION & SUMMARIZATION ---
+    # --- PHASE 1: DOCUMENT & IMAGE INGESTION ---
     if message.elements:
         for element in message.elements:
+            # --- HANDLE PDF (RAG + SUMMARIZATION) ---
             if element.type == "file" and element.name.endswith(".pdf"):
-                status_msg = cl.Message(content=f"📑 **Reading & Archiving:** `{element.name}`...")
+                status_msg = cl.Message(content=f"📑 **Indexing PDF:** `{element.name}`...")
                 await status_msg.send()
 
-                # 1. Extract Text
                 reader = PdfReader(element.path)
                 full_text = ""
                 
@@ -50,7 +55,7 @@ async def main(message: cl.Message):
                         full_text += page_text
                         collection.add(
                             documents=[page_text],
-                            metadatas=[{"source": element.name, "page": i+1}], # Store source info
+                            metadatas=[{"source": element.name, "page": i+1}],
                             ids=[f"{element.name}_pg_{i}"]
                         )
                 
@@ -59,17 +64,15 @@ async def main(message: cl.Message):
                     await status_msg.update()
                     return
 
-                # Set the content attribute, then call update()
-                status_msg.content = f"🧠 **Analyzing {len(full_text)} characters...** (Archiving with Citations)"
+                status_msg.content = f"🧠 **Analyzing {len(full_text)} characters...** (Archiving with Source Tracking)"
                 await status_msg.update()
 
-                # 2. Async Streaming Inference
                 ui_msg = cl.Message(content=f"### Summary: {element.name}\n\n")
                 await ui_msg.send()
 
                 try:
                     async for part in await client.chat(
-                        model=MODEL,
+                        model=TEXT_MODEL,
                         messages=[
                             {"role": "system", "content": """
                             You are a Senior Intelligence Analyst. Summarize this document using BLUF format. 
@@ -80,18 +83,40 @@ async def main(message: cl.Message):
                         ],
                         stream=True,
                     ):
-                        token = part['message']['content']
-                        await ui_msg.stream_token(token)
-                
+                        await ui_msg.stream_token(part['message']['content'])
                 except Exception as e:
                     await cl.Message(content=f"❌ **Inference Error:** {str(e)}").send()
 
-                # Finalize the message
                 await ui_msg.update()
-                
-                # 3. Secure Cleanup
                 secure_shred(element.path)
-                await cl.Message(content="🔒 *Original file purged from disk. Mission data securely archived.*").send()
+                await cl.Message(content=f"🔒 `{element.name}` purged from disk and archived.").send()
+
+            # --- HANDLE IMAGES (VISUAL INTEL) ---
+            elif element.type == "image":
+                status_msg = cl.Message(content=f"📸 **Analyzing Visual Intel:** `{element.name}`...")
+                await status_msg.send()
+
+                ui_msg = cl.Message(content=f"### Visual Analysis: {element.name}\n\n")
+                await ui_msg.send()
+
+                try:
+                    async for part in await client.chat(
+                        model=VISION_MODEL,
+                        messages=[{
+                            "role": "user", 
+                            "content": "Identify tactical landmarks, vehicles, equipment, personnel, or threats. Maintain a clinical, objective tone.",
+                            "images": [element.path]
+                        }],
+                        stream=True,
+                    ):
+                        await ui_msg.stream_token(part['message']['content'])
+                except Exception as e:
+                    await cl.Message(content=f"❌ **Vision Error:** {str(e)}").send()
+
+                await ui_msg.update()
+                await status_msg.remove()
+                secure_shred(element.path) # Shred image data after inference
+                await cl.Message(content=f"🔒 Visual data `{element.name}` purged from disk.").send()
         return
 
     # --- PHASE 2: LONG-TERM MEMORY RETRIEVAL (RAG) WITH CITATIONS ---
@@ -99,10 +124,8 @@ async def main(message: cl.Message):
         search_status = cl.Message(content="🔍 **Searching Archive...**")
         await search_status.send()
 
-        # Query the ChromaDB for the 3 most relevant snippets
         results = collection.query(query_texts=[message.content], n_results=3)
         
-        # Build context blocks and a list of unique sources
         context_blocks = []
         source_metadata = []
         
@@ -120,7 +143,7 @@ async def main(message: cl.Message):
 
         try:
             async for part in await client.chat(
-                model=MODEL,
+                model=TEXT_MODEL,
                 messages=[
                     {"role": "system", "content": f"""
                     You are a Tactical Analyst. Answer using the ARCHIVED CONTEXT provided below.
@@ -133,13 +156,10 @@ async def main(message: cl.Message):
                 ],
                 stream=True,
             ):
-                token = part['message']['content']
-                await ui_msg.stream_token(token)
+                await ui_msg.stream_token(part['message']['content'])
             
-            # Append verified source footer
             if source_metadata:
                 await ui_msg.stream_token(f"\n\n---\n**Verified Sources:** {unique_sources}")
-
         except Exception as e:
             await cl.Message(content=f"❌ **Search Error:** {str(e)}").send()
 

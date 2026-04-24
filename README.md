@@ -10,6 +10,7 @@ A secure, air-gapped-ready intelligence workstation optimized for Apple Silicon 
 - **Secure Data Handling**: Integrated military-grade **3-pass shredding** (`rm -P`) of uploaded PDF files immediately after processing.
 - **MLX Optimized**: Specifically tuned for Apple Silicon unified memory to ensure high-speed processing of large document contexts (50+ pages).
 - **Asynchronous Streaming**: Real-time feedback and word-by-word generation to prevent UI timeouts during heavy computation.
+- **Vision Analaysis**: Process tactical maps, drone feeds (stills), and satellite imagery alongside text-based mission reports.
 
 ---
 
@@ -38,6 +39,7 @@ Install models:
 ```
 ollama pull gemma4:26b
 ollama pull nomic-embed-text
+ollama pull moondream
 ```
 
 Install Dependencies (dedicated local environment):
@@ -96,6 +98,19 @@ cd ~/VSProjects/local-llm
 source .venv/bin/activate
 python3 -m chainlit run app.py -w
 ```
+
+Usage:
+- Upload: Drop a mission PDF into the UI for an instant BLUF (Bottom Line Up Front) summary and archival.
+- Query: Type questions to search the archive (e.g., "Identify all MANPADS sightings in the Arid Ridge sector").
+
+Security Protocol
+- Local Host Binding: The application is hard-coded to communicate with Ollama via 127.0.0.1 only.
+- Ephemeral Processing: Original PDF files are overwritten 3 times on the physical disk before deletion.
+-Archive Management: To purge the entire long-term memory archive, run:
+```
+rm -rf mission_db
+```
+
 ---
 
 ## Retrieval-Augmented Generation (RAG) Long-Term Memory 
