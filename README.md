@@ -11,6 +11,7 @@ A secure, air-gapped-ready intelligence workstation optimized for Apple Silicon 
 - **MLX Optimized**: Specifically tuned for Apple Silicon unified memory to ensure high-speed processing of large document contexts (50+ pages).
 - **Asynchronous Streaming**: Real-time feedback and word-by-word generation to prevent UI timeouts during heavy computation.
 - **Vision Analaysis**: Process tactical maps, drone feeds (stills), and satellite imagery alongside text-based mission reports.
+- **Reporting Export**: Secure PDF export of SITREP (Situation Report) based on chat history. 
 
 ---
 
@@ -57,6 +58,7 @@ pip install ollama
 pip install chainlit
 pip install pypdf
 pip install chromadb
+pip install fpdf2
 ```
 ---
 
